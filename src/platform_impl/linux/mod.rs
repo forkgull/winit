@@ -17,7 +17,7 @@ use std::{
 
 #[cfg(x11_platform)]
 use once_cell::sync::Lazy;
-use raw_window_handle::{RawDisplayHandle, RawWindowHandle};
+use raw_window_handle::{HandleError, RawDisplayHandle, RawWindowHandle};
 use smol_str::SmolStr;
 
 #[cfg(x11_platform)]
@@ -602,8 +602,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn raw_window_handle(&self) -> RawWindowHandle {
-        x11_or_wayland!(match self; Window(window) => window.raw_window_handle())
+    pub fn raw_window_handle(&self) -> Result<RawWindowHandle, HandleError> {
+        Ok(x11_or_wayland!(match self; Window(window) => window.raw_window_handle()))
     }
 
     #[inline]
