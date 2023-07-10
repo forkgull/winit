@@ -6,7 +6,9 @@ use crate::window::{
     WindowAttributes, WindowButtons, WindowId as RootWI, WindowLevel,
 };
 
-use raw_window_handle::{RawDisplayHandle, RawWindowHandle, WebDisplayHandle, WebWindowHandle};
+use raw_window_handle::{
+    HandleError, RawDisplayHandle, RawWindowHandle, WebDisplayHandle, WebWindowHandle,
+};
 use web_sys::HtmlCanvasElement;
 
 use super::r#async::Dispatcher;
@@ -374,10 +376,10 @@ impl Window {
     }
 
     #[inline]
-    pub fn raw_window_handle(&self) -> RawWindowHandle {
+    pub fn raw_window_handle(&self) -> Result<RawWindowHandle, HandleError> {
         let mut window_handle = WebWindowHandle::empty();
         window_handle.id = self.id.0;
-        RawWindowHandle::Web(window_handle)
+        Ok(RawWindowHandle::Web(window_handle))
     }
 
     #[inline]
