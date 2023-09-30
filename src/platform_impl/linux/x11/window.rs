@@ -4,7 +4,7 @@ use std::{
     mem::replace,
     os::raw::*,
     path::Path,
-    sync::{Arc, Mutex, MutexGuard},
+    sync::{mpsc, Arc, Mutex, MutexGuard},
 };
 
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, XlibDisplayHandle, XlibWindowHandle};
@@ -36,7 +36,7 @@ use crate::{
 };
 
 use super::{
-    ffi, util, CookieResultExt, EventLoopWindowTarget, ImeRequest, ImeSender, VoidCookie, WindowId,
+    ffi, ime::ImeRequest, util, CookieResultExt, EventLoopWindowTarget, VoidCookie, WindowId,
     XConnection,
 };
 
@@ -124,7 +124,7 @@ pub(crate) struct UnownedWindow {
     cursor_grabbed_mode: Mutex<CursorGrabMode>,
     #[allow(clippy::mutex_atomic)]
     cursor_visible: Mutex<bool>,
-    ime_sender: Mutex<ImeSender>,
+    ime_sender: Mutex<mpsc::Sender<ImeRequest>>,
     pub shared_state: Mutex<SharedState>,
     redraw_sender: WakeSender<WindowId>,
     activation_sender: WakeSender<super::ActivationToken>,
@@ -532,11 +532,10 @@ impl UnownedWindow {
                 .ignore_error();
 
             {
-                let result = event_loop
-                    .ime
-                    .borrow_mut()
-                    .create_context(window.xwindow as ffi::Window, false);
-                leap!(result);
+                if let Some(ime) = event_loop.ime.as_ref() {
+                    let result = ime.borrow_mut().create_context(window.xwindow, false, None);
+                    leap!(result);
+                }
             }
 
             // These properties must be set after mapping
@@ -1699,11 +1698,11 @@ impl UnownedWindow {
     #[inline]
     pub fn set_ime_cursor_area(&self, spot: Position, _size: Size) {
         let (x, y) = spot.to_physical::<i32>(self.scale_factor()).into();
-        let _ = self.ime_sender.lock().unwrap().send(ImeRequest::Position(
-            self.xwindow as ffi::Window,
-            x,
-            y,
-        ));
+        let _ = self
+            .ime_sender
+            .lock()
+            .unwrap()
+            .send(ImeRequest::Position(self.xwindow, x, y));
     }
 
     #[inline]
@@ -1712,7 +1711,7 @@ impl UnownedWindow {
             .ime_sender
             .lock()
             .unwrap()
-            .send(ImeRequest::Allow(self.xwindow as ffi::Window, allowed));
+            .send(ImeRequest::Allow(self.xwindow, allowed));
     }
 
     #[inline]
